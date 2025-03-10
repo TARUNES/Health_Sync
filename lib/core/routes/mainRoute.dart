@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:health_sync_client/features/auth/presentation/screens/auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/initial_page.dart';
 
@@ -7,8 +8,10 @@ class MainRoute extends StatelessWidget {
   const MainRoute({super.key});
 
   Future<bool> inAuthenticated() async {
-    await Future.delayed(Duration(seconds: 1));
-    return false;
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token'); // Retrieve token
+
+    return token != null && token.isNotEmpty;
   }
 
   @override

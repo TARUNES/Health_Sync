@@ -1,8 +1,13 @@
 // doctor_profile_screen.dart
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:health_sync_client/core/constants/fonts.dart';
 import 'package:health_sync_client/features/appointment/data/model/DoctorModel.dart';
 import 'package:health_sync_client/features/appointment/presentation/widgets/CustomDateChip.dart';
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DoctorProfileScreen extends StatefulWidget {
   final DoctorModel doctor;
@@ -16,12 +21,120 @@ class DoctorProfileScreen extends StatefulWidget {
 class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
   String? selectedDate;
   Set<String> selectedTimeSlots = {};
+  // @override
+  // void initState() {
+  //   super.initState();
+
+  //   // if (widget.doctor.availability.isNotEmpty) {
+  //   //   selectedDate = widget.doctor.availability.first.date;
+  //   // }
+  // }
+  List<Availability> availabilityList = [];
+  bool isLoading = true;
+
   @override
   void initState() {
     super.initState();
+    fetchAvailability();
+  }
 
-    if (widget.doctor.availability.isNotEmpty) {
-      selectedDate = widget.doctor.availability.first.date;
+  Future<void> sendSelectedDate() async {
+    final userid = "c746b537-e359-42d1-9a96-2c0322b6f080";
+
+    if (selectedDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please select a date first')),
+      );
+      return;
+    }
+
+    // Find the corresponding booking ID for the selected date
+    final selectedAvailability = availabilityList.firstWhere(
+      (availability) => availability.availabilityDate == selectedDate,
+      orElse: () => Availability(
+          id: '',
+          startTime: '',
+          endTime: "",
+          availabilityDate: "",
+          doctorId: "",
+          isBooked: false), // Default empty object
+    );
+
+    if (selectedAvailability.id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No booking ID found for the selected date')),
+      );
+      return;
+    }
+
+    final String bookingid = selectedAvailability.id;
+
+    final String apiUrl =
+        "http://172.31.135.242:8080/user/bookings/users/${userid}/availability/${bookingid}";
+
+    // final token =
+    //     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiOTc3NWE4MjctNjZjMC00OTdiLTk4YTQtNzIwZjQ1YjE5MzAwIiwicm9sZSI6InVzZXIiLCJlbWFpbCI6InRhcnVuZXNvZmZpY2lhbEBnbWFpbC5jb20iLCJleHAiOjE3NDE2MzA0OTZ9.dTsoSOetbLB4p48KrAyfwQkIQaJA5-Xoj8J6KaDGDfw";
+    Future<String?> getToken() async {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      return prefs.getString('token'); // Retrieve token from storage
+    }
+
+    String? token = await getToken();
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Appointment Scheduled successfully!')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(response.body)),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
+  Future<void> fetchAvailability() async {
+    final token =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiOTc3NWE4MjctNjZjMC00OTdiLTk4YTQtNzIwZjQ1YjE5MzAwIiwicm9sZSI6InVzZXIiLCJlbWFpbCI6InRhcnVuZXNvZmZpY2lhbEBnbWFpbC5jb20iLCJleHAiOjE3NDE2MzA0OTZ9.dTsoSOetbLB4p48KrAyfwQkIQaJA5-Xoj8J6KaDGDfw";
+    final String url =
+        'http://172.31.135.242:8080/doctors/${widget.doctor.id}/availability/';
+
+    try {
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        setState(() {
+          availabilityList =
+              data.map((json) => Availability.fromJson(json)).toList();
+          isLoading = false;
+        });
+      } else {
+        throw Exception('Failed to load availability');
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+      print('Error fetching availability: $e');
     }
   }
 
@@ -51,7 +164,7 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Hero(
-                      tag: "doctor_image_${widget.doctor.doctorId}",
+                      tag: "doctor_image_${widget.doctor.id}",
                       child: Material(
                         color: Colors.transparent,
                         child: Container(
@@ -63,27 +176,29 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(20),
-                            child: widget.doctor.profileUrl.isNotEmpty
-                                ? Image.network(
-                                    "https://img.freepik.com/free-photo/doctor-smiling-with-stethoscope_1154-36.jpg",
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return CircleAvatar(
-                                        radius: 50,
-                                        child: Icon(
-                                          Icons.person,
-                                          size: 50,
-                                          color: Colors.white,
-                                        ),
-                                        backgroundColor: Colors.grey,
-                                      );
-                                    },
-                                    fit: BoxFit.cover,
-                                  )
-                                : Icon(
-                                    Icons.person,
-                                    color: theme.primary,
-                                    size: 50,
-                                  ),
+                            child:
+                                // widget.doctor.profileUrl.isNotEmpty
+                                //     ? Image.network(
+                                //         "https://img.freepik.com/free-photo/doctor-smiling-with-stethoscope_1154-36.jpg",
+                                //         errorBuilder: (context, error, stackTrace) {
+                                //           return CircleAvatar(
+                                //             radius: 50,
+                                //             child: Icon(
+                                //               Icons.person,
+                                //               size: 50,
+                                //               color: Colors.white,
+                                //             ),
+                                //             backgroundColor: Colors.grey,
+                                //           );
+                                //         },
+                                //         fit: BoxFit.cover,
+                                //       )
+                                // :
+                                Icon(
+                              Icons.person,
+                              color: theme.primary,
+                              size: 50,
+                            ),
                           ),
                         ),
                       ),
@@ -111,7 +226,7 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
                               maxLines: 3,
                             ),
                             Text(
-                              widget.doctor.category,
+                              widget.doctor.specialization,
                               style: TextStyle(
                                   fontFamily: AppFonts.primaryFont,
                                   color: Color(0xffA0A0A4),
@@ -188,7 +303,7 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
                               width: 1,
                             ),
                             Text(
-                              widget.doctor.ratings.toString(),
+                              "4.5",
                               style: TextStyle(
                                   fontFamily: AppFonts.primaryFont,
                                   color: theme.onPrimary,
@@ -232,21 +347,26 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
                 SizedBox(
                   height: 20,
                 ),
-                Wrap(
-                  spacing: 8.0,
-                  children: widget.doctor.availability
-                      .map((Availability availability) {
-                    return CustomDateChip(
-                      label: availability.date,
-                      isSelected: selectedDate == availability.date,
-                      onSelected: (bool selected) {
-                        setState(() {
-                          selectedDate = selected ? availability.date : null;
-                        });
-                      },
-                    );
-                  }).toList(),
-                ),
+                isLoading
+                    ? CircularProgressIndicator()
+                    : Wrap(
+                        spacing: 8.0,
+                        children: availabilityList
+                            .map(
+                                (availability) => availability.availabilityDate)
+                            .toSet() // Remove duplicates
+                            .map((date) {
+                          return CustomDateChip(
+                            label: date,
+                            isSelected: selectedDate == date,
+                            onSelected: (bool selected) {
+                              setState(() {
+                                selectedDate = selected ? date : null;
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
                 SizedBox(height: 20),
                 Text(
                   "Timing",
@@ -263,20 +383,33 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
                         physics: NeverScrollableScrollPhysics(),
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 3,
-                          crossAxisSpacing: 8.0, // Space between columns
-                          mainAxisSpacing: 8.0, // Space between rows
+                          crossAxisSpacing: 8.0,
+                          mainAxisSpacing: 8.0,
                         ),
-                        itemCount: widget.doctor.availability
+                        itemCount: availabilityList
+                            .where((slot) => !slot.isBooked)
+                            .toList()
                             .where((availability) =>
-                                availability.date == selectedDate)
-                            .expand((availability) => availability.timeSlots)
+                                availability.availabilityDate == selectedDate)
                             .length,
                         itemBuilder: (context, index) {
-                          final timeSlot = widget.doctor.availability
+                          final availability = availabilityList
                               .where((availability) =>
-                                  availability.date == selectedDate)
-                              .expand((availability) => availability.timeSlots)
+                                  availability.availabilityDate == selectedDate)
                               .toList()[index];
+
+                          final DateFormat timeFormat =
+                              DateFormat('h a'); // e.g., 8 AM
+
+                          final startTimeFormatted = timeFormat.format(
+                              DateFormat("HH:mm:ss")
+                                  .parse(availability.startTime));
+                          final endTimeFormatted = timeFormat.format(
+                              DateFormat("HH:mm:ss")
+                                  .parse(availability.endTime));
+
+                          final timeSlot =
+                              "$startTimeFormatted - $endTimeFormatted";
 
                           return ChoiceChip(
                             showCheckmark: false,
@@ -285,16 +418,16 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
                               style: TextStyle(
                                 fontFamily: AppFonts.primaryFont,
                                 color: selectedTimeSlots.contains(timeSlot)
-                                    ? theme.background
+                                    ? Colors.white
                                     : theme.onPrimary,
                                 fontWeight: FontWeight.w500,
-                                fontSize: 16,
+                                fontSize: 12,
                               ),
                             ),
                             selected: selectedTimeSlots.contains(timeSlot),
-                            onSelected: (isSelected) {
+                            onSelected: (bool selected) {
                               setState(() {
-                                if (isSelected) {
+                                if (selected) {
                                   selectedTimeSlots.add(timeSlot);
                                 } else {
                                   selectedTimeSlots.remove(timeSlot);
@@ -303,24 +436,13 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
                             },
                             selectedColor: theme.primary,
                             backgroundColor: theme.background,
-                            shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(30), // Oval shape
-                            ),
-                            side: BorderSide(
-                              color: selectedTimeSlots.contains(timeSlot)
-                                  ? theme.primary
-                                  : theme.onPrimary.withOpacity(
-                                      0.5), // Border color based on selection
-                              width: 1, // Border width
-                            ),
                           );
                         },
                       )
                     : Container(),
                 SizedBox(height: 40),
                 InkWell(
-                  onTap: () {},
+                  onTap: () => sendSelectedDate(),
                   borderRadius: BorderRadius.circular(30),
                   child: Container(
                     width: double.infinity, // Occupy full width
@@ -354,6 +476,35 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class Availability {
+  final String id;
+  final String doctorId;
+  final String availabilityDate;
+  final String startTime;
+  final String endTime;
+  final bool isBooked;
+
+  Availability({
+    required this.id,
+    required this.doctorId,
+    required this.availabilityDate,
+    required this.startTime,
+    required this.endTime,
+    required this.isBooked,
+  });
+
+  factory Availability.fromJson(Map<String, dynamic> json) {
+    return Availability(
+      id: json['id'],
+      doctorId: json['doctor_id'],
+      availabilityDate: json['availability_date'],
+      startTime: json['start_time'],
+      endTime: json['end_time'],
+      isBooked: json['is_booked'],
     );
   }
 }

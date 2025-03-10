@@ -1,9 +1,13 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:health_sync_client/features/appointment/presentation/screens/getDatascreen.dart';
+import 'package:health_sync_client/features/auth/presentation/screens/login.dart';
 import 'package:health_sync_client/features/auth/presentation/widgets/frosted-design.dart';
 import 'package:health_sync_client/features/auth/presentation/widgets/user_input.dart';
 import 'package:health_sync_client/features/home/presentation/screens/home.dart';
 import 'package:health_sync_client/features/initial_page.dart';
+// import 'package:health_sync_client/features/auth/data/auth_service.dart';
 
 class SignupPage extends StatefulWidget {
   final VoidCallback onFlip;
@@ -14,51 +18,72 @@ class SignupPage extends StatefulWidget {
 }
 
 class _SignupPageState extends State<SignupPage> {
-  final TextEditingController username = TextEditingController();
-  final TextEditingController password = TextEditingController();
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
   bool isLoading = false;
+
+  final AuthService authService = AuthService();
 
   @override
   void dispose() {
-    username.dispose();
-    password.dispose();
+    nameController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
     super.dispose();
   }
 
   void signUp() async {
-    if (username.text.isEmpty || password.text.isEmpty) {
+    if (nameController.text.isEmpty ||
+        emailController.text.isEmpty ||
+        passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter email and password")),
+        const SnackBar(content: Text("All fields are required")),
       );
       return;
     }
 
     setState(() => isLoading = true);
 
-    await Future.delayed(const Duration(seconds: 2)); // Simulate API call
+    final response = await authService.signUpUser(
+      emailController.text.trim(),
+      passwordController.text.trim(),
+      nameController.text.trim(),
+    );
 
-    if (username.text == "user@example.com") {
+    setState(() => isLoading = false);
+
+    if (response != null) {
+      final user = response["user"];
+      final token = response["token"];
+
+      print("✅ Signup Successful! Full Response: $response");
+      print("👤 User Data: $user");
+      print("🔑 Token: $token");
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Signup successful!")),
+        SnackBar(content: Text("Signup successful! Welcome ${user["name"]}")),
       );
+
+      // ✅ Only one navigation call here
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => MainScreen()),
+        MaterialPageRoute(builder: (context) => GetDataPatient()),
       );
     } else {
+      print("❌ Signup Failed!");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Signup failed. Try again.")),
       );
     }
-
-    setState(() => isLoading = false);
   }
 
   @override
   Widget build(BuildContext context) {
     return SignUpWidget(
-      username: username,
-      password: password,
+      nameController: nameController,
+      emailController: emailController,
+      passwordController: passwordController,
       onFlip: widget.onFlip,
       isLoading: isLoading,
       onSignUp: signUp,
@@ -67,16 +92,18 @@ class _SignupPageState extends State<SignupPage> {
 }
 
 class SignUpWidget extends StatelessWidget {
-  final TextEditingController username;
-  final TextEditingController password;
+  final TextEditingController nameController;
+  final TextEditingController emailController;
+  final TextEditingController passwordController;
   final VoidCallback onFlip;
   final bool isLoading;
   final VoidCallback onSignUp;
 
   const SignUpWidget({
     super.key,
-    required this.username,
-    required this.password,
+    required this.nameController,
+    required this.emailController,
+    required this.passwordController,
     required this.onFlip,
     required this.isLoading,
     required this.onSignUp,
@@ -86,7 +113,7 @@ class SignUpWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: FrostedGlass(
-        height: 430,
+        height: 480,
         width: 350,
         borderradius: 20,
         child: Padding(
@@ -102,17 +129,24 @@ class SignUpWidget extends StatelessWidget {
                   color: Colors.black87,
                 ),
               ),
-              const SizedBox(height: 25),
+              const SizedBox(height: 20),
               UserInput(
                 icon: const Icon(Icons.person),
-                controller: username,
+                controller: nameController,
+                hintText: 'Full Name',
+              ),
+              const SizedBox(height: 15),
+              UserInput(
+                icon: const Icon(Icons.email),
+                controller: emailController,
                 hintText: 'Email',
               ),
               const SizedBox(height: 15),
               UserInput(
-                icon: const Icon(Icons.password),
-                controller: password,
+                icon: const Icon(Icons.lock),
+                controller: passwordController,
                 hintText: 'Password',
+                // obscureText: true,
               ),
               const SizedBox(height: 30),
               GestureDetector(

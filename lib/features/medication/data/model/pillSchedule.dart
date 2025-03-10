@@ -19,4 +19,13 @@ class PillScheduleModel {
       noOfDays: json['noOfDays'],
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'intakeTime': intakeTime,
+      'intakeDescription': intakeDescription,
+      'noOfDays': noOfDays,
+    };
+  }
 }

@@ -13,6 +13,14 @@ class AppointmentScreen extends StatefulWidget {
 
 class _AppointmentScreenState extends State<AppointmentScreen> {
   final DoctorRepo _doctorRepo = DoctorRepo();
+  late Future<List<DoctorModel>> _doctorListFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _doctorListFuture = _doctorRepo.fetchDoctors();
+  }
+
   int selectedSpecialty = 0;
   final List<String> specialties = [
     'General Surgeon',
@@ -230,7 +238,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
                 const SizedBox(height: 20),
 
                 FutureBuilder<List<DoctorModel>>(
-                  future: _doctorRepo.getDoctors(),
+                  future: _doctorRepo.fetchDoctors(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
@@ -286,7 +294,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
                                       ),
                                       child: Hero(
                                         tag:
-                                            "doctor_image_${doctor.doctorId}", // Make sure this matches exactly
+                                            "doctor_image_${doctor.id}", // Make sure this matches exactly
                                         child: Material(
                                           // Wrap with Material widget
                                           color: Colors.transparent,
@@ -302,30 +310,32 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
                                             child: ClipRRect(
                                               borderRadius:
                                                   BorderRadius.circular(20),
-                                              child: doctor
-                                                      .profileUrl.isNotEmpty
-                                                  ? Image.network(
-                                                      doctor.profileUrl,
-                                                      errorBuilder: (context,
-                                                          error, stackTrace) {
-                                                        return CircleAvatar(
-                                                          radius: 30,
-                                                          child: Icon(
-                                                            Icons.person,
-                                                            size: 30,
-                                                            color: Colors.white,
-                                                          ),
-                                                          backgroundColor:
-                                                              Colors.grey,
-                                                        );
-                                                      },
-                                                      fit: BoxFit.cover,
-                                                    )
-                                                  : Icon(
-                                                      Icons.person,
-                                                      color: theme.primary,
-                                                      size: 30,
-                                                    ),
+                                              child:
+                                                  // doctor
+                                                  //     .profileUrl.isNotEmpty
+                                                  // ? Image.network(
+                                                  //     doctor.profileUrl,
+                                                  //     errorBuilder: (context,
+                                                  //         error, stackTrace) {
+                                                  //       return CircleAvatar(
+                                                  //         radius: 30,
+                                                  //         child: Icon(
+                                                  //           Icons.person,
+                                                  //           size: 30,
+                                                  //           color: Colors.white,
+                                                  //         ),
+                                                  //         backgroundColor:
+                                                  //             Colors.grey,
+                                                  //       );
+                                                  //     },
+                                                  //     fit: BoxFit.cover,
+                                                  //   )
+                                                  // :
+                                                  Icon(
+                                                Icons.person,
+                                                color: theme.primary,
+                                                size: 30,
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -348,7 +358,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
                                           ),
                                           const SizedBox(height: 5),
                                           Text(
-                                            doctor.category,
+                                            doctor.specialization,
                                             style: TextStyle(
                                                 fontFamily:
                                                     AppFonts.primaryFont,

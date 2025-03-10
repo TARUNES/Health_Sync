@@ -1,5 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:health_sync_client/core/constants/fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -9,6 +13,77 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  Future<void> _loadProfileFromLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final profileJson = prefs.getString('profile_data');
+
+      if (profileJson != null) {
+        final profileData = json.decode(profileJson);
+        setState(() {
+          name = profileData['name'] ?? name;
+
+          // Update emergency contact data
+          emergencyName =
+              profileData['emergency_contact_name'] ?? emergencyName;
+          relationship =
+              profileData['emergency_contact_relationship'] ?? relationship;
+          emergencyPhone =
+              profileData['emergency_contact_number'] ?? emergencyPhone;
+
+          // Update medical data
+          bloodType = profileData['blood_group'] ?? bloodType;
+
+          // You could update other fields here as needed
+        });
+      }
+    } catch (e) {
+      print('Error loading profile data: $e');
+    }
+  }
+
+// Save profile data to API and local storage
+  Future<bool> _saveProfileData() async {
+    try {
+      // Prepare data to match the required format
+      final profileData = {
+        'name': name,
+        'age': 35, // You might want to add an age field to your form
+        'gender': 'Female', // Add gender selection to your form
+        'blood_group': bloodType,
+        'emergency_contact_number': emergencyPhone,
+        'emergency_contact_relationship': relationship
+      };
+
+      // API call
+      final response = await http.post(
+        Uri.parse('https://your-api-url.com/profile'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(profileData),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Save to local storage
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('profile_data', json.encode(profileData));
+        return true;
+      } else {
+        print('Failed to update profile. Status: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      print('Error saving profile data: $e');
+      return false;
+    }
+  }
+
+// Call this in your initState
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileFromLocal();
+  }
+
   bool _isEditing = false;
   final _formKey = GlobalKey<FormState>();
 

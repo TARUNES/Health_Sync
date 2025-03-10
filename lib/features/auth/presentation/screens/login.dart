@@ -1,9 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:health_sync_client/features/auth/presentation/widgets/frosted-design.dart';
 import 'package:health_sync_client/features/auth/presentation/widgets/user_input.dart';
 import 'package:health_sync_client/features/home/presentation/screens/home.dart';
 import 'package:health_sync_client/features/initial_page.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
   final VoidCallback onFlip;
@@ -28,24 +32,33 @@ class _LoginPageState extends State<LoginPage> {
   void login() async {
     setState(() => isLoading = true);
 
-    await Future.delayed(const Duration(seconds: 2)); // Simulate API call
+    try {
+      final authService = AuthService();
+      final response =
+          await authService.loginUser(username.text, password.text);
 
-    if (username.text == "user@example.com" && password.text == "password") {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => HomeScreen()),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Invalid email or password")),
-      );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => MainScreen()),
-      );
+      if (response != null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => HomeScreen()),
+        );
+      } else {
+        showError("Invalid email or password");
+      }
+    } catch (e) {
+      showError("An error occurred. Please try again.");
+      debugPrint("Login error: $e"); // Log error for debugging
+    } finally {
+      if (mounted)
+        setState(() => isLoading =
+            false); // Ensure widget is mounted before calling setState
     }
+  }
 
-    setState(() => isLoading = false);
+  void showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
@@ -161,5 +174,66 @@ class LoginWidget extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class AuthService {
+  final String baseUrl =
+      "http://172.31.135.242:8080/auth"; // Replace with your backend URL
+
+  Future<Map<String, dynamic>?> loginUser(String email, String password) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/login/user"),
+        headers: {"Content-Type": "application/json"},
+        body:
+            jsonEncode({"email": email, "password": password, "role": "user"}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        await saveUserData(data); // Store token
+        return data;
+      } else {
+        return null;
+      }
+    } catch (e) {
+      print("Login Error: $e");
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> signUpUser(
+      String email, String password, String name) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/register/user"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "email": email,
+          "password": password,
+          "role": "user",
+          "name": name
+        }),
+      );
+      print("Responsse: ${response.body}");
+
+      if (response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        await saveUserData(data); // Store token
+        return data;
+      } else {
+        return null;
+      }
+    } catch (e) {
+      print("Login Error: $e");
+      return null;
+    }
+  }
+
+  Future<void> saveUserData(Map<String, dynamic> data) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString("token", data["token"]);
+    await prefs.setString("user", jsonEncode(data["user"]));
   }
 }

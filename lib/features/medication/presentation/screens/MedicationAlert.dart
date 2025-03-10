@@ -1,8 +1,13 @@
+import 'dart:convert';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:http/http.dart' as http;
+
 import 'package:flutter/material.dart';
 import 'package:health_sync_client/core/constants/fonts.dart';
 
 import 'package:health_sync_client/features/medication/data/model/pillSchedule.dart';
 import 'package:health_sync_client/features/medication/domain/repository/pillScheduleRepo.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MedicationScreen extends StatefulWidget {
   const MedicationScreen({super.key});
@@ -12,16 +17,26 @@ class MedicationScreen extends StatefulWidget {
 }
 
 class _MedicationScreenState extends State<MedicationScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _loadMedications();
+  }
+
+  void _loadMedications() {
+    setState(() {
+      _futureMedications = _repository.getMedications();
+    });
+  }
+
   late Future<List<PillScheduleModel>> _futureMedications;
   final Map<String, List<PillScheduleModel>> _groupedMedications = {};
   final MedicationRepository _repository = MedicationRepository();
   final TextEditingController _medicationNameController =
       TextEditingController();
-  final TextEditingController _intakeController = TextEditingController();
+  final TextEditingController _dosageController = TextEditingController();
   TimeOfDay? _selectedTime;
-
-  String? _selectedTimeSlot;
-  String? _selectedIntake;
+  String? _selectedFrequency;
 
   // List of pill images to cycle through
   final List<String> _pillImages = [
@@ -29,16 +44,6 @@ class _MedicationScreenState extends State<MedicationScreen> {
     'assets/illustrations/goldenpill.png',
     'assets/illustrations/brownpill.png',
   ];
-
-  // List of time slots and intake options
-  final List<String> _timeSlots = ['Morning', 'Afternoon', 'Evening', 'Night'];
-  final List<String> _intakeOptions = ['Before Food', 'After Food'];
-
-  @override
-  void initState() {
-    super.initState();
-    _futureMedications = _repository.getMedications();
-  }
 
   @override
   void dispose() {
@@ -58,14 +63,19 @@ class _MedicationScreenState extends State<MedicationScreen> {
     }
   }
 
+// Add these controllers to your state class
+
+// Add this list for frequency options
+  final List<String> _frequencyOptions = ['daily', 'weekly', 'monthly'];
+
   Future<void> _selectTime(BuildContext context) async {
-    final TimeOfDay? picked = await showTimePicker(
+    final TimeOfDay? pickedTime = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.now(),
+      initialTime: _selectedTime ?? TimeOfDay.now(),
     );
-    if (picked != null) {
+    if (pickedTime != null && pickedTime != _selectedTime) {
       setState(() {
-        _selectedTime = picked;
+        _selectedTime = pickedTime;
       });
     }
   }
@@ -76,196 +86,235 @@ class _MedicationScreenState extends State<MedicationScreen> {
       isScrollControlled: true,
       context: context,
       builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            left: 20,
-            right: 20,
-            top: 20,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Text(
-                    'Add Medication',
-                    style: TextStyle(
-                      fontFamily: AppFonts.primaryFont,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: theme.onBackground,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: _medicationNameController,
-                  decoration: InputDecoration(
-                    labelText: 'Medication Name',
-                    labelStyle: TextStyle(
-                      fontFamily: AppFonts.primaryFont,
-                      color: theme.onBackground,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Medication intake:',
-                  style: TextStyle(
-                    fontFamily: AppFonts.primaryFont,
-                    color: theme.onBackground,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  children: _intakeOptions.map((intake) {
-                    return ChoiceChip(
-                      label: Text(intake),
-                      selected: _selectedIntake == intake,
-                      onSelected: (selected) {
-                        setState(() {
-                          _selectedIntake = selected ? intake : null;
-                        });
-                      },
-                      selectedColor: theme.secondary,
-                      labelStyle: TextStyle(
-                        color: _selectedIntake == intake
-                            ? theme.onSecondary
-                            : theme.onBackground,
-                      ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Time slot:',
-                  style: TextStyle(
-                    fontFamily: AppFonts.primaryFont,
-                    color: theme.onBackground,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  children: _timeSlots.map((slot) {
-                    return ChoiceChip(
-                      label: Text(slot),
-                      selected: _selectedTimeSlot == slot,
-                      onSelected: (selected) {
-                        setState(() {
-                          _selectedTimeSlot = selected ? slot : null;
-                        });
-                      },
-                      selectedColor: theme.secondary,
-                      labelStyle: TextStyle(
-                        color: _selectedTimeSlot == slot
-                            ? theme.onSecondary
-                            : theme.onBackground,
-                      ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 20),
-                InkWell(
-                  onTap: () => _selectTime(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: theme.outline),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          _selectedTime != null
-                              ? _selectedTime!.format(context)
-                              : 'Select Time',
-                          style: TextStyle(
-                            color: theme.onBackground,
-                            fontSize: 14,
-                          ),
-                        ),
-                        Icon(Icons.access_time, color: theme.onBackground),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Text(
-                      'No of intake:',
+        return StatefulBuilder(builder: (context, setState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+              left: 20,
+              right: 20,
+              top: 20,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Text(
+                      'Add Medication',
                       style: TextStyle(
                         fontFamily: AppFonts.primaryFont,
-                        color: theme.onBackground,
                         fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: theme.onBackground,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Medication Name Field
+                  TextField(
+                    controller: _medicationNameController,
+                    decoration: InputDecoration(
+                      labelText: 'Medication Name',
+                      labelStyle: TextStyle(
+                        fontFamily: AppFonts.primaryFont,
+                        color: theme.onBackground,
+                        fontWeight: FontWeight.w500,
                         fontSize: 14,
                       ),
-                    ),
-                    const SizedBox(
-                        width: 10), // Use width instead of height inside Row
-                    Expanded(
-                      child: TextField(
-                        controller: _intakeController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: 'in Quantity',
-                          labelStyle: TextStyle(
-                            fontFamily: AppFonts.primaryFont,
-                            color: theme.onBackground,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 14,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.secondary,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(
+                      border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    onPressed: () {
-                      // Add validation and save logic here
-                      Navigator.pop(context);
-                    },
-                    child: Text(
-                      'Save Medication',
-                      style: TextStyle(
-                        color: theme.onSecondary,
-                        fontWeight: FontWeight.bold,
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Dosage Field
+                  TextField(
+                    controller: _dosageController,
+                    decoration: InputDecoration(
+                      labelText: 'Dosage (e.g., 10mg)',
+                      labelStyle: TextStyle(
+                        fontFamily: AppFonts.primaryFont,
+                        color: theme.onBackground,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 20),
-              ],
+
+                  const SizedBox(height: 20),
+
+                  // Frequency Selection
+                  Text(
+                    'Frequency:',
+                    style: TextStyle(
+                      fontFamily: AppFonts.primaryFont,
+                      color: theme.onBackground,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    children: _frequencyOptions.map((frequency) {
+                      return ChoiceChip(
+                        label: Text(frequency),
+                        selected: _selectedFrequency == frequency,
+                        onSelected: (selected) {
+                          setState(() {
+                            _selectedFrequency = selected ? frequency : null;
+                          });
+                        },
+                        selectedColor: theme.secondary,
+                        labelStyle: TextStyle(
+                          color: _selectedFrequency == frequency
+                              ? theme.onSecondary
+                              : theme.onBackground,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Time Picker
+                  Text(
+                    'Time to take:',
+                    style: TextStyle(
+                      fontFamily: AppFonts.primaryFont,
+                      color: theme.onBackground,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  InkWell(
+                    onTap: () async {
+                      final TimeOfDay? pickedTime = await showTimePicker(
+                        context: context,
+                        initialTime: _selectedTime ?? TimeOfDay.now(),
+                      );
+                      if (pickedTime != null && pickedTime != _selectedTime) {
+                        setState(() {
+                          _selectedTime = pickedTime;
+                        });
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: theme.outline),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _selectedTime != null
+                                ? _selectedTime!.format(context)
+                                : 'Select Time',
+                            style: TextStyle(
+                              color: theme.onBackground,
+                              fontSize: 14,
+                            ),
+                          ),
+                          Icon(Icons.access_time, color: theme.onBackground),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Save Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.secondary,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () async {
+                        // Validation
+                        if (_medicationNameController.text.isEmpty ||
+                            _dosageController.text.isEmpty ||
+                            _selectedFrequency == null ||
+                            _selectedTime == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text("Please fill all fields"),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
+
+                        // Format time to HH:MM:SS as required by API
+                        String formattedHour =
+                            _selectedTime!.hour.toString().padLeft(2, '0');
+                        String formattedMinute =
+                            _selectedTime!.minute.toString().padLeft(2, '0');
+                        String timeToNotify =
+                            "$formattedHour:$formattedMinute:00";
+
+                        // Prepare API data
+                        Map<String, dynamic> medicationData = {
+                          "medication_name":
+                              _medicationNameController.text.trim(),
+                          "dosage": _dosageController.text.trim(),
+                          "time_to_notify": timeToNotify,
+                          "frequency": _selectedFrequency
+                        };
+
+                        final medicationService = MedicationRepository();
+                        await medicationService.scheduleMedications(
+                            medicationData["medication_name"],
+                            medicationData["dosage"],
+                            medicationData["time_to_notify"],
+                            medicationData["frequency"]);
+                        Navigator.of(context).pop();
+                        setState(() {
+                          _medicationNameController.clear();
+                          _dosageController.clear();
+                          _selectedFrequency = null;
+                          _selectedTime = null;
+                        });
+
+                        // Close the modal sheet
+
+                        // Show success message
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text("Medication scheduled successfully"),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      },
+                      child: Text(
+                        'Save Medication',
+                        style: TextStyle(
+                          color: theme.onSecondary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
-          ),
-        );
+          );
+        });
       },
     );
   }
@@ -447,6 +496,105 @@ class _MedicationScreenState extends State<MedicationScreen> {
           },
         ),
       ),
+    );
+  }
+}
+
+class MedicationRepository {
+  final String baseUrl = "http://172.31.135.242:8080";
+  final String userId = "6788a3bf-5258-4dc1-8892-1ae9af9af215";
+
+  Future<List<PillScheduleModel>> getMedications() async {
+    Future<String?> getToken() async {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      return prefs.getString('token'); // Retrieve token from storage
+    }
+
+    String? token = await getToken();
+    final response = await http.get(
+      Uri.parse('$baseUrl/user/$userId/medications'),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      List<dynamic> data = json.decode(response.body);
+      print(response.body);
+      print(response.statusCode);
+
+      return data.map((e) => PillScheduleModel.fromJson(e)).toList();
+    } else {
+      print(response.body);
+      print(response.statusCode);
+      throw Exception("Failed to load medications");
+    }
+  }
+
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+
+  Future<List<PillScheduleModel>> scheduleMedications(
+      String name, String dosage, String timeNotify, String frequency) async {
+    Future<String?> getToken() async {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      return prefs.getString('token');
+    }
+
+    String? token = await getToken();
+    final response = await http.post(
+      Uri.parse('$baseUrl/user/$userId/medications'),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+      body: json.encode({
+        "medication_name": name,
+        "dosage": dosage,
+        "time_to_notify": timeNotify,
+        "frequency": frequency,
+      }),
+    );
+    print(name);
+    print(dosage);
+    print(timeNotify);
+    print(frequency);
+
+    if (response.statusCode == 201) {
+      Map<String, dynamic> data = json.decode(response.body);
+      print(response.body);
+
+      final medication = data["medication"]["medication"];
+
+      // Show an instant notification
+      sendInstantNotification(name, dosage);
+
+      return [PillScheduleModel.fromJson(medication)];
+    } else {
+      print(response.body);
+      throw Exception("Failed to schedule medications");
+    }
+  }
+
+  // **Function to Show an Instant Notification**
+  void sendInstantNotification(String name, String dosage) async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'medication_channel',
+      'Medication Reminders',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+
+    const NotificationDetails platformChannelSpecifics =
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+
+    await flutterLocalNotificationsPlugin.show(
+      0, // Notification ID
+      "Medication Scheduled",
+      "$name - $dosage has been scheduled successfully.",
+      platformChannelSpecifics,
     );
   }
 }
