@@ -17,8 +17,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String patientId = "#12345";
 
   // Emergency Contact
-  String emergencyName = "Jane Doe";
-  String relationship = "Spouse";
+  String emergencyName = "Kannan";
+  String relationship = "Parent";
   String emergencyPhone = "+1 (555) 123-4567";
 
   // Medical Information

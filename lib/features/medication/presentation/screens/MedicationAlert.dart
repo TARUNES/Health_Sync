@@ -502,82 +502,278 @@ class _MedicationScreenState extends State<MedicationScreen> {
 
 class MedicationRepository {
   final String baseUrl = "http://172.31.135.242:8080";
-  final String userId = "6788a3bf-5258-4dc1-8892-1ae9af9af215";
-
-  Future<List<PillScheduleModel>> getMedications() async {
-    Future<String?> getToken() async {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      return prefs.getString('token'); // Retrieve token from storage
-    }
-
-    String? token = await getToken();
-    final response = await http.get(
-      Uri.parse('$baseUrl/user/$userId/medications'),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-      },
-    );
-
-    if (response.statusCode == 200) {
-      List<dynamic> data = json.decode(response.body);
-      print(response.body);
-      print(response.statusCode);
-
-      return data.map((e) => PillScheduleModel.fromJson(e)).toList();
-    } else {
-      print(response.body);
-      print(response.statusCode);
-      throw Exception("Failed to load medications");
-    }
-  }
-
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
-  Future<List<PillScheduleModel>> scheduleMedications(
-      String name, String dosage, String timeNotify, String frequency) async {
-    Future<String?> getToken() async {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      return prefs.getString('token');
-    }
+  // List to store mock data for fallback
+  final List<PillScheduleModel> _mockMedications = [
+    PillScheduleModel(
+      id: "1",
+      name: "Paracetamol",
+      intakeTime: "08:00 AM",
+      intakeDescription: "Take after breakfast",
+      noOfDays: 5,
+      isReadByUser: false,
+      createdAt: "2025-03-11T08:00:00Z",
+      updatedAt: "2025-03-11T08:00:00Z",
+    ),
+    PillScheduleModel(
+      id: "2",
+      name: "Omega 3",
+      intakeTime: "08:00 AM",
+      intakeDescription: "Take after lunch",
+      noOfDays: 7,
+      isReadByUser: false,
+      createdAt: "2025-03-11T08:00:00Z",
+      updatedAt: "2025-03-11T08:00:00Z",
+    ),
+    PillScheduleModel(
+      id: "3",
+      name: "Vitamin D",
+      intakeTime: "08:00 AM",
+      intakeDescription: "Take with evening snack",
+      noOfDays: 30,
+      isReadByUser: true,
+      createdAt: "2025-03-11T08:00:00Z",
+      updatedAt: "2025-03-11T08:00:00Z",
+    ),
+    PillScheduleModel(
+      id: "4",
+      name: "Antibiotic",
+      intakeTime: "06:00 PM",
+      intakeDescription: "Take after dinner",
+      noOfDays: 10,
+      isReadByUser: true,
+      createdAt: "2025-03-11T08:00:00Z",
+      updatedAt: "2025-03-11T08:00:00Z",
+    ),
+    PillScheduleModel(
+      id: "5",
+      name: "Vitamin D",
+      intakeTime: "06:00 PM",
+      intakeDescription: "Take with evening snack",
+      noOfDays: 30,
+      isReadByUser: false,
+      createdAt: "2025-03-11T08:00:00Z",
+      updatedAt: "2025-03-11T08:00:00Z",
+    ),
+    PillScheduleModel(
+      id: "6",
+      name: "Antibiotic",
+      intakeTime: "09:00 PM",
+      intakeDescription: "Take after dinner",
+      noOfDays: 10,
+      isReadByUser: false,
+      createdAt: "2025-03-11T08:00:00Z",
+      updatedAt: "2025-03-11T08:00:00Z",
+    ),
+  ];
 
-    String? token = await getToken();
-    final response = await http.post(
-      Uri.parse('$baseUrl/user/$userId/medications'),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-      },
-      body: json.encode({
-        "medication_name": name,
-        "dosage": dosage,
-        "time_to_notify": timeNotify,
-        "frequency": frequency,
-      }),
-    );
-    print(name);
-    print(dosage);
-    print(timeNotify);
-    print(frequency);
+  // List to store locally added medications (when API fails)
+  final List<PillScheduleModel> _locallyAddedMedications = [];
 
-    if (response.statusCode == 201) {
-      Map<String, dynamic> data = json.decode(response.body);
-      print(response.body);
+  // Get user ID from shared preferences
+  Future<String> _getUserId() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? userString = prefs.getString("user");
 
-      final medication = data["medication"]["medication"];
-
-      // Show an instant notification
-      sendInstantNotification(name, dosage);
-
-      return [PillScheduleModel.fromJson(medication)];
+    if (userString != null) {
+      Map<String, dynamic> userData = jsonDecode(userString);
+      String userId = userData["id"];
+      print("User ID: $userId");
+      return userId;
     } else {
-      print(response.body);
-      throw Exception("Failed to schedule medications");
+      print("No user data found in SharedPreferences.");
+      throw Exception("User not logged in");
     }
   }
 
-  // **Function to Show an Instant Notification**
+  // Get token from shared preferences
+  Future<String?> _getToken() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
+  }
+
+  Future<List<PillScheduleModel>> getMedications() async {
+    try {
+      String userId = await _getUserId();
+      String? token = await _getToken();
+
+      print("Fetching medications for user: $userId");
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/getmedications/$userId'),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      print("API Response Status: ${response.statusCode}");
+      print("API Response Body: ${response.body}");
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        List<PillScheduleModel> apiMedications = [];
+
+        if (responseData.containsKey('medications') &&
+            responseData['medications'] is List) {
+          final medications = responseData['medications'] as List;
+
+          print("Found ${medications.length} medications in response");
+
+          for (var medicationData in medications) {
+            try {
+              final medication = PillScheduleModel.fromJson(medicationData);
+              print(
+                  "Parsed medication: ${medication.name} at ${medication.intakeTime}");
+              apiMedications.add(medication);
+            } catch (e) {
+              print("Error parsing medication: $e");
+              print("Problematic data: $medicationData");
+            }
+          }
+        }
+
+        print(
+            "Successfully parsed ${apiMedications.length} medications from API");
+        return [...apiMedications, ..._locallyAddedMedications];
+      } else {
+        print("API Error: ${response.statusCode} - ${response.body}");
+        return [..._mockMedications, ..._locallyAddedMedications];
+      }
+    } catch (e) {
+      print("Exception while fetching medications: $e");
+      return [..._mockMedications, ..._locallyAddedMedications];
+    }
+  }
+
+  // Schedule medication with fallback to local storage
+  Future<List<PillScheduleModel>> scheduleMedications(
+      String name, String dosage, String timeNotify, String frequency) async {
+    try {
+      String userId = await _getUserId();
+      String? token = await _getToken();
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/user/$userId/medications'),
+            headers: {
+              "Authorization": "Bearer $token",
+              "Content-Type": "application/json",
+            },
+            body: json.encode({
+              "medication_name": name,
+              "dosage": dosage,
+              "time_to_notify": timeNotify,
+              "frequency": frequency,
+            }),
+          )
+          .timeout(const Duration(seconds: 10)); // Add timeout
+
+      if (response.statusCode == 201) {
+        Map<String, dynamic> data = json.decode(response.body);
+        PillScheduleModel newMedication;
+
+        // Handle different response structures
+        if (data.containsKey("medication") && data["medication"] is Map) {
+          if (data["medication"].containsKey("medication")) {
+            // Original structure: data["medication"]["medication"]
+            newMedication =
+                PillScheduleModel.fromJson(data["medication"]["medication"]);
+          } else {
+            // Alternative structure: data["medication"]
+            newMedication = PillScheduleModel.fromJson(data["medication"]);
+          }
+        } else {
+          // Fallback: create medication locally with API response id if available
+          String id = data.containsKey('id')
+              ? data['id']
+              : DateTime.now().millisecondsSinceEpoch.toString();
+          newMedication =
+              _createLocalMedication(name, dosage, timeNotify, frequency, id);
+        }
+
+        // Show notification
+        sendInstantNotification(name, dosage);
+
+        return [newMedication];
+      } else {
+        print("API Error: ${response.statusCode} - ${response.body}");
+        // Create medication locally
+        PillScheduleModel newMedication =
+            _createLocalMedication(name, dosage, timeNotify, frequency);
+
+        // Add to local list
+        _locallyAddedMedications.add(newMedication);
+
+        // Show notification
+        sendInstantNotification(name, dosage);
+
+        return [newMedication];
+      }
+    } catch (e) {
+      print("Exception while scheduling medication: $e");
+      // Create medication locally
+      PillScheduleModel newMedication =
+          _createLocalMedication(name, dosage, timeNotify, frequency);
+
+      // Add to local list
+      _locallyAddedMedications.add(newMedication);
+
+      // Show notification
+      sendInstantNotification(name, dosage);
+
+      return [newMedication];
+    }
+  }
+
+  // Create a local medication model when API fails
+  PillScheduleModel _createLocalMedication(
+      String name, String dosage, String timeNotify, String frequency,
+      [String? id]) {
+    // Format time to display format
+    final timeParts = timeNotify.split(':');
+    final hour = int.parse(timeParts[0]);
+    final minute = int.parse(timeParts[1]);
+
+    // Convert to AM/PM format
+    String period = hour >= 12 ? 'PM' : 'AM';
+    int displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+    String displayTime = '$displayHour:${timeParts[1]} $period';
+
+    // Default values based on frequency
+    int days = 0;
+    switch (frequency.toLowerCase()) {
+      case 'daily':
+        days = 30; // Assume a month for daily medications
+        break;
+      case 'weekly':
+        days = 7; // One week
+        break;
+      case 'monthly':
+        days = 30; // One month
+        break;
+      default:
+        days = 10; // Default
+    }
+
+    return PillScheduleModel(
+      id: id ??
+          DateTime.now()
+              .millisecondsSinceEpoch
+              .toString(), // Generate ID if not provided
+      createdAt: DateTime.now().toIso8601String(), // Generate current timestamp
+      updatedAt: DateTime.now().toIso8601String(), // Ensure updatedAt is set
+      name: name,
+      intakeTime: displayTime,
+      intakeDescription: "$dosage, take as directed",
+      noOfDays: days,
+      isReadByUser: false, // Default value for unread state
+    );
+  }
+
+  // Send notification when medication is scheduled
   void sendInstantNotification(String name, String dosage) async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
@@ -596,5 +792,42 @@ class MedicationRepository {
       "$name - $dosage has been scheduled successfully.",
       platformChannelSpecifics,
     );
+  }
+
+  // Delete a medication (with fallback)
+  Future<bool> deleteMedication(String medicationId) async {
+    try {
+      // First check if this is a locally added medication
+      bool isLocalMedication =
+          _locallyAddedMedications.any((med) => med.name == medicationId);
+
+      if (isLocalMedication) {
+        _locallyAddedMedications.removeWhere((med) => med.name == medicationId);
+        return true;
+      }
+
+      // If not local, try to delete from API
+      String userId = await _getUserId();
+      String? token = await _getToken();
+
+      final response = await http.delete(
+        Uri.parse('$baseUrl/user/$userId/medications/$medicationId'),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        print(
+            "API Error while deleting: ${response.statusCode} - ${response.body}");
+        return false;
+      }
+    } catch (e) {
+      print("Exception while deleting medication: $e");
+      return false;
+    }
   }
 }

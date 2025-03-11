@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
+import 'package:health_sync_client/features/home/data/model/booking_model.dart';
+import 'package:health_sync_client/features/home/presentation/screens/emeregencyscreen.dart';
 import 'package:http/http.dart' as http;
 import 'package:fl_chart/fl_chart.dart'; // Add this import
 import 'package:health_sync_client/core/constants/assets.dart';
@@ -10,7 +12,7 @@ import 'package:health_sync_client/core/constants/fonts.dart';
 import 'package:health_sync_client/core/utils/components/ProfileIcon.dart';
 import 'package:health_sync_client/features/appointment/data/model/DoctorModel.dart';
 import 'package:health_sync_client/features/appointment/presentation/screens/DoctorProfile.dart';
-import 'package:health_sync_client/features/home/data/model/booking_model.dart';
+
 import 'package:health_sync_client/features/medical_records/presentation/screens/medicalRecords.dart';
 import 'package:health_sync_client/features/medication/presentation/screens/MedicationAlert.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -35,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     loadProfileData();
     fetchBookings();
+    loadFitnessData();
   }
 
   Future<void> loadProfileData() async {
@@ -68,12 +71,27 @@ class _HomeScreenState extends State<HomeScreen> {
       return prefs.getString('token'); // Retrieve token from storage
     }
 
+    Future<String> _getUserId() async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? userString = prefs.getString("user");
+
+      if (userString != null) {
+        Map<String, dynamic> userData = jsonDecode(userString);
+        String userId = userData["id"];
+        print("User ID: $userId");
+        return userId;
+      } else {
+        print("No user data found in SharedPreferences.");
+        throw Exception("User not logged in");
+      }
+    }
+
     String? token = await getToken();
+    String userId = await _getUserId();
 
     try {
       final response = await http.get(
-        Uri.parse(
-            'http://172.31.135.242:8080/user/bookings/users/c746b537-e359-42d1-9a96-2c0322b6f080'),
+        Uri.parse('http://172.31.135.242:8080/user/bookings/users/${userId}'),
         headers: {
           "Authorization": "Bearer $token",
           "Content-Type": "application/json",
@@ -102,29 +120,6 @@ class _HomeScreenState extends State<HomeScreen> {
     Size screenSize = MediaQuery.of(context).size;
     double screenWidth = screenSize.width;
     double screenHeight = screenSize.height;
-    // final DoctorModel doctor = DoctorModel(
-    //   doctorId: "D001",
-    //   name: "Dr. John Doe",
-    //   experience: 10,
-    //   ratings: 4.7,
-    //   contact: "+1234567890",
-    //   category: "Dentist",
-    //   profileUrl: "https://picsum.photos/id/237/200/300.jpg",
-    //   availability: [
-    //     Availability(
-    //       date: "2025-02-05",
-    //       timeSlots: ["09:00 AM", "10:00 AM", "11:00 AM"],
-    //     ),
-    //     Availability(
-    //       date: "2025-02-06",
-    //       timeSlots: ["09:00 AM", "10:00 AM"],
-    //     ),
-    //     Availability(
-    //       date: "2025-02-07",
-    //       timeSlots: ["02:00 PM", "03:00 PM"],
-    //     ),
-    //   ],
-    // );
 
     return Scaffold(
       backgroundColor: theme.background,
@@ -203,67 +198,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // Pie Chart Container
-                      // Container(
-                      //   height: screenHeight / 4.5,
-                      //   width: screenWidth / 2.4,
-                      //   decoration: BoxDecoration(
-                      //     border: Border.all(
-                      //       color: Color.fromARGB(255, 141, 144, 145),
-                      //       width: .8,
-                      //     ),
-                      //     borderRadius: BorderRadius.circular(15),
-                      //   ),
-                      //   child: Column(
-                      //     mainAxisAlignment: MainAxisAlignment.center,
-                      //     children: [
-                      //       SizedBox(
-                      //         height: 120,
-                      //         child: PieChart(
-                      //           PieChartData(
-                      //             sectionsSpace: 0,
-                      //             centerSpaceRadius: 40,
-                      //             sections: [
-                      //               PieChartSectionData(
-                      //                 value: 75, // 7500 steps of 10000
-                      //                 color: theme.primary,
-                      //                 radius: 20,
-                      //                 showTitle: false,
-                      //               ),
-                      //               PieChartSectionData(
-                      //                 value: 25, // remaining steps
-                      //                 color: Colors.grey.shade300,
-                      //                 radius: 20,
-                      //                 showTitle: false,
-                      //               ),
-                      //             ],
-                      //           ),
-                      //         ),
-                      //       ),
-                      //       SizedBox(height: 8),
-                      //       Text(
-                      //         "7,500 / 10,000",
-                      //         style: TextStyle(
-                      //           fontFamily: AppFonts.primaryFont,
-                      //           fontWeight: FontWeight.bold,
-                      //           fontSize: 16,
-                      //         ),
-                      //       ),
-                      //       Text(
-                      //         "Daily Steps",
-                      //         style: TextStyle(
-                      //           fontFamily: AppFonts.primaryFont,
-                      //           color: theme.onPrimary,
-                      //           fontSize: 12,
-                      //         ),
-                      //       ),
-                      //     ],
-                      //   ),
-                      // ),
                       BMICard(
-                          weight: double.parse(weight),
-                          height: double.parse(height)),
-
+                        weight: double.parse(weight),
+                        height:
+                            double.parse(height) / 100, // Convert cm to meters
+                      ),
                       // Grid Buttons
                       SizedBox(
                         height: screenHeight / 5,
@@ -285,15 +224,26 @@ class _HomeScreenState extends State<HomeScreen> {
                                 color: Colors.white,
                               ),
                             ),
-                            Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: theme.primary,
-                              ),
-                              child: Icon(
-                                Icons.emergency_share_rounded, // Emergency icon
-                                size: 25,
-                                color: Colors.white,
+                            InkWell(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => EmergencyScreen(),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: theme.primary,
+                                ),
+                                child: Icon(
+                                  Icons
+                                      .emergency_share_rounded, // Emergency icon
+                                  size: 25,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                             Container(
@@ -458,23 +408,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  // Expanded(
-                  //   child: ListView.builder(
-                  //     itemCount: 2,
-                  //     itemBuilder: (context, index) {
-                  //       final booking = bookings[index];
-                  //       final doctor = booking.doctor;
 
-                  //       return
                   if (bookings.isNotEmpty)
                     DoctorCard(
                         doctor: bookings[0].doctor,
                         onTap: () {
                           showAppointmentDetails(context, bookings[0]);
                         })
-                  //     },
-                  //   ),
-                  // )
                 ],
               )
             ],

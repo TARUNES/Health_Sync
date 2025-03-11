@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:health_sync_client/core/routes/mainRoute.dart';
 import 'package:health_sync_client/features/auth/presentation/widgets/frosted-design.dart';
 import 'package:health_sync_client/features/auth/presentation/widgets/user_input.dart';
 import 'package:health_sync_client/features/home/presentation/screens/home.dart';
@@ -40,7 +41,7 @@ class _LoginPageState extends State<LoginPage> {
       if (response != null) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => HomeScreen()),
+          MaterialPageRoute(builder: (context) => MainRoute()),
         );
       } else {
         showError("Invalid email or password");
@@ -189,6 +190,7 @@ class AuthService {
         body:
             jsonEncode({"email": email, "password": password, "role": "user"}),
       );
+      print("$baseUrl/login/user");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

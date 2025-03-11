@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:health_sync_client/core/constants/fonts.dart';
+import 'package:health_sync_client/core/routes/mainRoute.dart';
+import 'package:health_sync_client/features/auth/presentation/screens/auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
@@ -13,6 +15,41 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  bool _isEditing = false;
+  final _formKey = GlobalKey<FormState>();
+
+  // User Profile Data
+  String name = "Tarunes";
+  String patientId = "#12345";
+
+  // Emergency Contact
+  String emergencyName = "Jane Doe";
+  String relationship = "Spouse";
+  String emergencyPhone = "+1 (555) 123-4567";
+
+  // Medical Information
+  String bloodType = "O+";
+  String height = "5'10\" (178 cm)";
+  String weight = "165 lbs (75 kg)";
+  String bmi = "23.7 (Normal)";
+
+  // Medical Conditions
+  String allergies = "Penicillin, Peanuts";
+  String chronicConditions = "Type 2 Diabetes";
+  String pastSurgeries = "Appendectomy (2019)";
+
+  // Current Medications
+  List<Medication> medications = [
+    Medication(name: "Metformin", dosage: "500mg", frequency: "2x daily"),
+    Medication(name: "Fish Oil", dosage: "1000mg", frequency: "1x daily"),
+    Medication(name: "Vitamin D", dosage: "2000 IU", frequency: "1x daily"),
+  ];
+
+  // Healthcare Providers
+  String primaryPhysician = "Dr. Sarah Smith";
+  String specialist = "Dr. Michael Johnson";
+  String preferredHospital = "City General Hospital";
+
   Future<void> _loadProfileFromLocal() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -84,41 +121,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadProfileFromLocal();
   }
 
-  bool _isEditing = false;
-  final _formKey = GlobalKey<FormState>();
-
-  // User Profile Data
-  String name = "John Doe";
-  String patientId = "#12345";
-
-  // Emergency Contact
-  String emergencyName = "Jane Doe";
-  String relationship = "Spouse";
-  String emergencyPhone = "+1 (555) 123-4567";
-
-  // Medical Information
-  String bloodType = "O+";
-  String height = "5'10\" (178 cm)";
-  String weight = "165 lbs (75 kg)";
-  String bmi = "23.7 (Normal)";
-
-  // Medical Conditions
-  String allergies = "Penicillin, Peanuts";
-  String chronicConditions = "Type 2 Diabetes";
-  String pastSurgeries = "Appendectomy (2019)";
-
-  // Current Medications
-  List<Medication> medications = [
-    Medication(name: "Metformin", dosage: "500mg", frequency: "2x daily"),
-    Medication(name: "Fish Oil", dosage: "1000mg", frequency: "1x daily"),
-    Medication(name: "Vitamin D", dosage: "2000 IU", frequency: "1x daily"),
-  ];
-
-  // Healthcare Providers
-  String primaryPhysician = "Dr. Sarah Smith";
-  String specialist = "Dr. Michael Johnson";
-  String preferredHospital = "City General Hospital";
-
   @override
   Widget build(BuildContext context) {
     final ColorScheme theme = Theme.of(context).colorScheme;
@@ -158,6 +160,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _isEditing = true;
                 });
               }
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.logout, color: theme.onBackground),
+            onPressed: () async {
+              SharedPreferences prefs = await SharedPreferences.getInstance();
+              await prefs.clear();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => MainRoute()),
+              );
             },
           ),
         ],

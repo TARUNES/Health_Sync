@@ -67,20 +67,17 @@ class _GetDataPatientState extends State<GetDataPatient> {
   }
 
   Future<void> _saveProfile() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
     setState(() {
       _isLoading = true;
       _statusMessage = '';
     });
 
+    // Create profile data object from form inputs
     final profileData = {
       'name': _nameController.text,
-      'age': int.parse(_ageController.text),
-      'weight': int.parse(_weightController.text),
-      'height': int.parse(_heightController.text),
+      'age': int.tryParse(_ageController.text) ?? 0,
+      'weight': int.tryParse(_weightController.text) ?? 0,
+      'height': int.tryParse(_heightController.text) ?? 0,
       'gender': _selectedGender,
       'blood_group': _selectedBloodGroup,
       'emergency_contact_number': _emergencyContactController.text,
@@ -88,48 +85,99 @@ class _GetDataPatientState extends State<GetDataPatient> {
     };
 
     try {
-      // Make API call
-      Future<String?> getToken() async {
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        return prefs.getString('token'); // Retrieve token from storage
-      }
-
-      String? token = await getToken();
-
-      final response = await http.post(
-        Uri.parse(
-            'https://172.31.135.242:8080//user/updateprofile/94f89b34-3a69-417a-b2ef-b8129f7fac83'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(profileData),
-      );
-
+      // First, save the data locally to ensure it's stored regardless of API result
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('profile_data', json.encode(profileData));
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        // Save locally
 
-        setState(() {
-          _statusMessage = 'Profile updated successfully!';
-        });
+      // Get user token and ID for API call
+      String? token = await getToken();
+      String userid = "";
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => MainScreen()),
-        );
+      final String? userString = prefs.getString("user");
+      if (userString != null) {
+        Map<String, dynamic> userData = jsonDecode(userString);
+        userid = userData["id"];
+        print("User ID: $userid");
+      } else {
+        print("No user data found in SharedPreferences.");
+      }
+
+      // Now attempt API call
+      if (userid.isNotEmpty) {
+        try {
+          final response = await http.put(
+            Uri.parse('http://172.31.135.242:8080/user/updateprofile/$userid'),
+            headers: {
+              'Content-Type': 'application/json',
+              "Authorization": "Bearer $token",
+            },
+            body: json.encode(profileData),
+          );
+          print(response.statusCode);
+          print(response.body);
+          print(profileData);
+          print("API Response Status: ${response.statusCode}");
+
+          if (response.statusCode == 200 || response.statusCode == 201) {
+            setState(() {
+              _statusMessage = 'Profile updated successfully!';
+            });
+          } else {
+            setState(() {
+              _statusMessage =
+                  'Warning: Profile saved locally but server update failed (${response.statusCode})';
+            });
+          }
+        } catch (apiError) {
+          print("API Error: $apiError");
+          setState(() {
+            _statusMessage =
+                'Warning: Profile saved locally but server update failed';
+          });
+        }
       } else {
         setState(() {
-          _statusMessage =
-              'Failed to update profile. Error: ${response.statusCode}';
+          _statusMessage = 'Profile saved locally only (no user ID found)';
         });
       }
+
+      // Navigate regardless of API success since data is saved locally
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => MainScreen()),
+      );
     } catch (e) {
+      print("Error saving profile: $e");
       setState(() {
-        _statusMessage = 'An error occurred: $e';
+        _isLoading = false;
+        _statusMessage = 'Error saving profile: $e';
       });
     } finally {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+// Helper function to get token
+  Future<String?> getToken() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
+  }
+
+// Add this function to load profile data anywhere in your app
+  Future<Map<String, dynamic>?> loadProfileData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final profileDataString = prefs.getString('profile_data');
+
+      if (profileDataString != null && profileDataString.isNotEmpty) {
+        return json.decode(profileDataString) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print("Error loading profile data: $e");
+      return null;
     }
   }
 

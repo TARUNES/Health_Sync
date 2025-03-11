@@ -39,7 +39,18 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
   }
 
   Future<void> sendSelectedDate() async {
-    final userid = "c746b537-e359-42d1-9a96-2c0322b6f080";
+    String userid = "";
+
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? doctorString = prefs.getString("user");
+
+    if (doctorString != null) {
+      Map<String, dynamic> doctorData = jsonDecode(doctorString);
+      userid = doctorData["id"]; // Assuming "id" is stored as a String
+      print("Doctor ID: $userid");
+    } else {
+      print("No doctor data found in SharedPreferences.");
+    }
 
     if (selectedDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -106,10 +117,17 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
   }
 
   Future<void> fetchAvailability() async {
-    final token =
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiOTc3NWE4MjctNjZjMC00OTdiLTk4YTQtNzIwZjQ1YjE5MzAwIiwicm9sZSI6InVzZXIiLCJlbWFpbCI6InRhcnVuZXNvZmZpY2lhbEBnbWFpbC5jb20iLCJleHAiOjE3NDE2MzA0OTZ9.dTsoSOetbLB4p48KrAyfwQkIQaJA5-Xoj8J6KaDGDfw";
     final String url =
         'http://172.31.135.242:8080/doctors/${widget.doctor.id}/availability/';
+
+    Future<String?> getToken() async {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      return prefs.getString('token'); // Retrieve token from storage
+    }
+
+    String? token = await getToken();
+
+    print(token);
 
     try {
       final response = await http.get(
@@ -242,7 +260,7 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
                           height: 20,
                         ),
                         Text(
-                          "\$20/hr",
+                          "\$${widget.doctor.experience}/hr",
                           style: TextStyle(
                               fontFamily: AppFonts.primaryFont,
                               color: theme.primary,
