@@ -59,8 +59,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (profileData != null) {
       Map<String, dynamic> decodedData = jsonDecode(profileData);
       setState(() {
-        height = decodedData['height'] ?? "164";
-        weight = decodedData['weight'] ?? "59";
+        height = decodedData['height'].toString();
+        weight = decodedData['weight'].toString();
       });
     }
   }
@@ -330,21 +330,30 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                             SizedBox(height: 5),
-                            Container(
-                              height: 30,
-                              width: 100,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
-                                color: theme.primary,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  "Mark as Taken ",
-                                  style: TextStyle(
-                                    fontFamily: AppFonts.primaryFont,
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w300,
-                                    fontSize: 10,
+                            InkWell(
+                              onTap: () {
+                                Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => MedicationScreen(),
+                                    ));
+                              },
+                              child: Container(
+                                height: 30,
+                                width: 100,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  color: theme.primary,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    "Mark as Taken ",
+                                    style: TextStyle(
+                                      fontFamily: AppFonts.primaryFont,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w300,
+                                      fontSize: 10,
+                                    ),
                                   ),
                                 ),
                               ),

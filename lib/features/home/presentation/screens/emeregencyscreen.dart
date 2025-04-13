@@ -67,7 +67,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
 
     // Static emergency message
     final message =
-        "EMERGENCY: I need help! Please contact me as soon as possible.";
+        "EMERGENCY: I need help! Please contact me as soon as possible. https://www.google.com/maps?q=12.9207931,80.2399035";
 
     // Using url_launcher to send SMS
     final url = Uri.parse(

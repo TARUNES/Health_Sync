@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:health_sync_client/core/routes/mainRoute.dart';
 import 'package:health_sync_client/features/auth/presentation/widgets/frosted-design.dart';
 import 'package:health_sync_client/features/auth/presentation/widgets/user_input.dart';
@@ -18,10 +19,70 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
+class GoogleSignInButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  final bool isLoading;
+
+  const GoogleSignInButton({
+    Key? key,
+    required this.onPressed,
+    this.isLoading = false,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: isLoading ? null : onPressed,
+      child: Container(
+        width: double.infinity,
+        height: 55,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey.shade300),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              spreadRadius: 1,
+              blurRadius: 2,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Center(
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Image.asset(
+                    //   'assets/google_logo.png', // Add this image to your assets
+                    //   height: 24,
+                    //   width: 24,
+                    // ),
+                    Icon(Icons.g_mobiledata, color: Colors.red),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Sign in with Google',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController username = TextEditingController();
   final TextEditingController password = TextEditingController();
   bool isLoading = false; // To show the loading indicator
+  bool isGoogleSignInLoading = false;
 
   @override
   void dispose() {
@@ -56,6 +117,31 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  void signInWithGoogle() async {
+    setState(() => isGoogleSignInLoading = true);
+
+    try {
+      final authService = AuthService();
+      final response = await authService.signInWithGoogle();
+
+      if (response != null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => MainRoute()),
+        );
+      } else {
+        showError("Google sign-in failed or was canceled");
+      }
+    } catch (e) {
+      showError("An error occurred during Google sign-in");
+      debugPrint("Google sign-in error: $e");
+    } finally {
+      if (mounted) {
+        setState(() => isGoogleSignInLoading = false);
+      }
+    }
+  }
+
   void showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
@@ -70,6 +156,8 @@ class _LoginPageState extends State<LoginPage> {
       onFlip: widget.onFlip,
       isLoading: isLoading,
       onLogin: login,
+      onGoogleSignIn: signInWithGoogle,
+      isGoogleSignInLoading: isGoogleSignInLoading,
     );
   }
 }
@@ -80,21 +168,25 @@ class LoginWidget extends StatelessWidget {
   final VoidCallback onFlip;
   final bool isLoading;
   final VoidCallback onLogin;
+  final VoidCallback onGoogleSignIn;
+  final bool isGoogleSignInLoading;
 
   const LoginWidget({
-    super.key,
+    Key? key,
     required this.username,
     required this.password,
     required this.onFlip,
     required this.isLoading,
     required this.onLogin,
-  });
+    required this.onGoogleSignIn,
+    this.isGoogleSignInLoading = false,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: FrostedGlass(
-        height: 430,
+        height: 500, // Increased height to accommodate the Google button
         width: 350,
         borderradius: 20,
         child: Padding(
@@ -147,6 +239,25 @@ class LoginWidget extends StatelessWidget {
               ),
               const SizedBox(height: 15),
               Row(
+                children: [
+                  Expanded(child: Divider(color: Colors.grey.shade400)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(
+                      'OR',
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  ),
+                  Expanded(child: Divider(color: Colors.grey.shade400)),
+                ],
+              ),
+              const SizedBox(height: 15),
+              GoogleSignInButton(
+                onPressed: onGoogleSignIn,
+                isLoading: isGoogleSignInLoading,
+              ),
+              const SizedBox(height: 15),
+              Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
@@ -181,6 +292,50 @@ class LoginWidget extends StatelessWidget {
 class AuthService {
   final String baseUrl =
       "http://172.31.135.242:8080/auth"; // Replace with your backend URL
+
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    // For iOS devices, use your iOS client ID also
+    clientId:
+        '532745854641-tkcf9fepfa26rbafmo0900k1r108via4.apps.googleusercontent.com',
+    scopes: ['email', 'profile'],
+  );
+  Future<Map<String, dynamic>?> signInWithGoogle() async {
+    try {
+      // Trigger the authentication flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+
+      if (googleUser == null) {
+        // User canceled the sign-in flow
+        return null;
+      }
+
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      // Use the accessToken and idToken to authenticate with your server
+      final response = await http.post(
+        Uri.parse('$baseUrl/google/signin'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'idToken': googleAuth.idToken,
+          'accessToken': googleAuth.accessToken,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to authenticate with the server');
+      }
+
+      final data = jsonDecode(response.body);
+      await saveUserData(data);
+
+      return data;
+    } catch (e) {
+      print('Google Sign-In Error: $e');
+      return null;
+    }
+  }
 
   Future<Map<String, dynamic>?> loginUser(String email, String password) async {
     try {
