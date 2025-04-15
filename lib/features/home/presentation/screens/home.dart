@@ -262,8 +262,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => MedicalRecordsScreen(
-                                      patientId: "P001",
+                                    builder: (context) => MedicalRecordsPage(
+                                      userId:
+                                          "1", // Replace with actual user ID
                                     ),
                                   ),
                                 );
