@@ -28,10 +28,10 @@ class MyApp extends StatelessWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
       debugShowCheckedModeBanner: false,
-      // home: MainRoute(),
-      home: MedicalRecordsPage(
-        userId: "",
-      ),
+      home: MainRoute(),
+      // home: MedicalRecordsPage(
+      //   userId: "",
+      // ),
     );
   }
 }
