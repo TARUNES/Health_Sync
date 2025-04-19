@@ -106,7 +106,7 @@ class _GetDataPatientState extends State<GetDataPatient> {
       if (userid.isNotEmpty) {
         try {
           final response = await http.put(
-            Uri.parse('https://10.0.2.2:8443/user/updateprofile/$userid'),
+            Uri.parse('http://10.0.2.2:8080/user/updateprofile/$userid'),
             headers: {
               'Content-Type': 'application/json',
               "Authorization": "Bearer $token",

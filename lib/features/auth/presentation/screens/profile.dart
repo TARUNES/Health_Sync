@@ -117,8 +117,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   SizedBox(height: 16),
 
-                  // Current Medications Card
-                  _buildMedicationsCard(theme),
+                  // // Current Medications Card
+                  // _buildMedicationsCard(theme),
 
                   SizedBox(height: 16),
 

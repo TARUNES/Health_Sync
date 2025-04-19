@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:health_sync_client/features/home/data/model/booking_model.dart';
 import 'package:health_sync_client/features/home/presentation/screens/emeregencyscreen.dart';
+import 'package:health_sync_client/features/medication/data/model/pillSchedule.dart';
 import 'package:http/http.dart' as http;
 import 'package:fl_chart/fl_chart.dart'; // Add this import
 import 'package:health_sync_client/core/constants/assets.dart';
@@ -27,6 +28,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   @override
   List<Booking> bookings = [];
+  final MedicationRepository _medicationRepo = MedicationRepository();
+  List<PillScheduleModel> _medications = [];
+  bool _isLoadingMedications = true;
   bool isLoading = true;
   String name = "Tarun"; // Default name
   String userID = "";
@@ -39,6 +43,22 @@ class _HomeScreenState extends State<HomeScreen> {
     loadProfileData();
     fetchBookings();
     loadFitnessData();
+    _loadMedications();
+  }
+
+  Future<void> _loadMedications() async {
+    try {
+      final medications = await _medicationRepo.getMedications();
+      setState(() {
+        _medications = medications;
+        _isLoadingMedications = false;
+      });
+    } catch (e) {
+      print("Error loading medications: $e");
+      setState(() {
+        _isLoadingMedications = false;
+      });
+    }
   }
 
   Future<void> loadProfileData() async {
@@ -291,74 +311,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Container(
-                        width: screenWidth / 1.8,
-                        padding: const EdgeInsets.all(12.0),
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: Color.fromARGB(255, 141, 144, 145),
-                            width: .8,
-                          ),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Time For  \nyour next\nDose!',
-                                  style: TextStyle(
-                                    fontFamily: AppFonts.primaryFont,
-                                    color: theme.onPrimary,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 20,
-                                  ),
-                                  textAlign: TextAlign.left,
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 3,
-                                ),
-                                Image.asset(
-                                  "assets/illustrations/time_med_illu.png",
-                                  height: 80,
-                                  width: 80,
-                                  fit: BoxFit.cover,
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 5),
-                            InkWell(
-                              onTap: () {
-                                Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => MedicationScreen(),
-                                    ));
-                              },
-                              child: Container(
-                                height: 30,
-                                width: 100,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(20),
-                                  color: theme.primary,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    "Mark as Taken ",
-                                    style: TextStyle(
-                                      fontFamily: AppFonts.primaryFont,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w300,
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                      MedicationReminderWidget(
+                        medications: _medications,
+                        theme: theme,
+                        screenWidth: screenWidth,
                       ),
                       GestureDetector(
                         onTap: () {
@@ -391,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 fit: BoxFit.fill,
                               ),
                               Text(
-                                "   3\npills",
+                                "   ${_medications.length}\npills",
                                 style: TextStyle(
                                   fontFamily: AppFonts.primaryFont,
                                   color: Colors.white,
@@ -665,6 +621,196 @@ class BMICard extends StatelessWidget {
           Text(
             bmiCategory,
             style: TextStyle(color: bmiColor, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MedicationReminderWidget extends StatelessWidget {
+  final List<PillScheduleModel> medications;
+  final ColorScheme theme;
+  final double screenWidth;
+
+  const MedicationReminderWidget({
+    Key? key,
+    required this.medications,
+    required this.theme,
+    required this.screenWidth,
+  }) : super(key: key);
+
+  String _getNextMedicationTime() {
+    if (medications.isEmpty) return "No medications\n scheduled";
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    // Find the next medication time
+    DateTime? nextTime;
+    for (var med in medications) {
+      final timeParts = med.intakeTime.split(' ');
+      final timeComponents = timeParts[0].split(':');
+      final period = timeParts[1];
+
+      int hour = int.parse(timeComponents[0]);
+      final minute = int.parse(timeComponents[1]);
+
+      // Convert to 24-hour format
+      if (period == 'PM' && hour != 12) {
+        hour += 12;
+      } else if (period == 'AM' && hour == 12) {
+        hour = 0;
+      }
+
+      final medTime = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        hour,
+        minute,
+      );
+
+      if (medTime.isAfter(now)) {
+        if (nextTime == null || medTime.isBefore(nextTime)) {
+          nextTime = medTime;
+        }
+      }
+    }
+
+    if (nextTime == null) {
+      // If no more medications today, find first medication tomorrow
+      final tomorrow = today.add(const Duration(days: 1));
+      for (var med in medications) {
+        final timeParts = med.intakeTime.split(' ');
+        final timeComponents = timeParts[0].split(':');
+        final period = timeParts[1];
+
+        int hour = int.parse(timeComponents[0]);
+        final minute = int.parse(timeComponents[1]);
+
+        // Convert to 24-hour format
+        if (period == 'PM' && hour != 12) {
+          hour += 12;
+        } else if (period == 'AM' && hour == 12) {
+          hour = 0;
+        }
+
+        final medTime = DateTime(
+          tomorrow.year,
+          tomorrow.month,
+          tomorrow.day,
+          hour,
+          minute,
+        );
+
+        if (nextTime == null || medTime.isBefore(nextTime)) {
+          nextTime = medTime;
+        }
+      }
+    }
+
+    if (nextTime == null) {
+      return "No upcoming medications";
+    }
+
+    // Return the time in the same format as stored in the backend
+    return medications.firstWhere((med) {
+      final timeParts = med.intakeTime.split(' ');
+      final timeComponents = timeParts[0].split(':');
+      final period = timeParts[1];
+      int hour = int.parse(timeComponents[0]);
+      final minute = int.parse(timeComponents[1]);
+
+      if (period == 'PM' && hour != 12) {
+        hour += 12;
+      } else if (period == 'AM' && hour == 12) {
+        hour = 0;
+      }
+
+      return hour == nextTime!.hour && minute == nextTime!.minute;
+    }).intakeTime;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: screenWidth / 1.8,
+      padding: const EdgeInsets.all(12.0),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: Color.fromARGB(255, 141, 144, 145),
+          width: .8,
+        ),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Next Dose',
+                    style: TextStyle(
+                      fontFamily: AppFonts.primaryFont,
+                      color: theme.onPrimary,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 20,
+                    ),
+                  ),
+                  Text(
+                    _getNextMedicationTime(),
+                    style: TextStyle(
+                      fontFamily: AppFonts.primaryFont,
+                      color: theme.onPrimary,
+                      fontWeight: FontWeight.w300,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+              Image.asset(
+                "assets/illustrations/time_med_illu.png",
+                height: 80,
+                width: 80,
+                fit: BoxFit.cover,
+              ),
+            ],
+          ),
+          SizedBox(height: 5),
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MedicationScreen(),
+                ),
+              );
+            },
+            child: Container(
+              height: 30,
+              width: 100,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: theme.primary,
+              ),
+              child: Center(
+                child: Text(
+                  "Mark as Taken",
+                  style: TextStyle(
+                    fontFamily: AppFonts.primaryFont,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w300,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),

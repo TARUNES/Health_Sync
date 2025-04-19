@@ -16,39 +16,109 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _isEditing = false;
+  bool _isLoading = true;
   final _formKey = GlobalKey<FormState>();
 
   // User Profile Data
-  String name = "Tarunes";
-  String patientId = "#12345";
+  String name = "";
+  String patientId = "";
 
   // Emergency Contact
-  String emergencyName = "Jane Doe";
-  String relationship = "Spouse";
-  String emergencyPhone = "+1 (555) 123-4567";
+  String emergencyName = "";
+  String relationship = "";
+  String emergencyPhone = "";
 
   // Medical Information
-  String bloodType = "O+";
-  String height = "5'10\" (178 cm)";
-  String weight = "165 lbs (75 kg)";
-  String bmi = "23.7 (Normal)";
+  String bloodType = "";
+  String height = "";
+  String weight = "";
+  String bmi = "";
 
   // Medical Conditions
-  String allergies = "Penicillin, Peanuts";
-  String chronicConditions = "Type 2 Diabetes";
-  String pastSurgeries = "Appendectomy (2019)";
+  String allergies = "";
+  String chronicConditions = "";
+  String pastSurgeries = "";
 
   // Current Medications
-  List<Medication> medications = [
-    Medication(name: "Metformin", dosage: "500mg", frequency: "2x daily"),
-    Medication(name: "Fish Oil", dosage: "1000mg", frequency: "1x daily"),
-    Medication(name: "Vitamin D", dosage: "2000 IU", frequency: "1x daily"),
-  ];
+  List<Medication> medications = [];
 
   // Healthcare Providers
-  String primaryPhysician = "Dr. Sarah Smith";
-  String specialist = "Dr. Michael Johnson";
-  String preferredHospital = "City General Hospital";
+  String primaryPhysician = "";
+  String specialist = "";
+  String preferredHospital = "";
+
+  Future<String?> getToken() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
+  }
+
+  Future<String> getUserId() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? userString = prefs.getString("user");
+
+    if (userString != null) {
+      Map<String, dynamic> userData = jsonDecode(userString);
+      String userId = userData["id"];
+      return userId;
+    } else {
+      throw Exception("User not logged in");
+    }
+  }
+
+  Future<void> _loadProfileData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+
+      String userId = await getUserId();
+      String? token = await getToken();
+
+      if (token == null) {
+        throw Exception("No authentication token found");
+      }
+
+      // Fetch profile data from API
+      final response = await http.get(
+        Uri.parse('https://10.0.2.2:8443/user/profile/$userId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final profileData = json.decode(response.body);
+        setState(() {
+          name = profileData['name'] ?? "";
+          patientId = profileData['id'] ?? "";
+          bloodType = profileData['blood_group'] ?? "";
+          height = profileData['height']?.toString() ?? "";
+          weight = profileData['weight']?.toString() ?? "";
+          bmi = profileData['bmi']?.toString() ?? "";
+          emergencyName = profileData['emergency_contact_name'] ?? "";
+          relationship = profileData['emergency_contact_relationship'] ?? "";
+          emergencyPhone = profileData['emergency_contact_number'] ?? "";
+          allergies = profileData['allergies'] ?? "";
+          chronicConditions = profileData['chronic_conditions'] ?? "";
+          pastSurgeries = profileData['past_surgeries'] ?? "";
+          primaryPhysician = profileData['primary_physician'] ?? "";
+          specialist = profileData['specialist'] ?? "";
+          preferredHospital = profileData['preferred_hospital'] ?? "";
+        });
+      } else {
+        throw Exception('Failed to load profile data: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error loading profile data: $e');
+      // Load from local storage as fallback
+      await _loadProfileFromLocal();
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   Future<void> _loadProfileFromLocal() async {
     try {
@@ -59,54 +129,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final profileData = json.decode(profileJson);
         setState(() {
           name = profileData['name'] ?? name;
-
-          // Update emergency contact data
           emergencyName =
               profileData['emergency_contact_name'] ?? emergencyName;
           relationship =
               profileData['emergency_contact_relationship'] ?? relationship;
           emergencyPhone =
               profileData['emergency_contact_number'] ?? emergencyPhone;
-
-          // Update medical data
           bloodType = profileData['blood_group'] ?? bloodType;
-
-          // You could update other fields here as needed
+          height = profileData['height']?.toString() ?? height;
+          weight = profileData['weight']?.toString() ?? weight;
         });
       }
     } catch (e) {
-      print('Error loading profile data: $e');
+      print('Error loading local profile data: $e');
     }
   }
 
-// Save profile data to API and local storage
   Future<bool> _saveProfileData() async {
     try {
+      String userId = await getUserId();
+      String? token = await getToken();
+
+      if (token == null) {
+        throw Exception("No authentication token found");
+      }
+
       // Prepare data to match the required format
       final profileData = {
         'name': name,
-        'age': 35, // You might want to add an age field to your form
-        'gender': 'Female', // Add gender selection to your form
         'blood_group': bloodType,
+        'height': int.tryParse(height) ?? 0,
+        'weight': int.tryParse(weight) ?? 0,
+        'emergency_contact_name': emergencyName,
         'emergency_contact_number': emergencyPhone,
-        'emergency_contact_relationship': relationship
+        'emergency_contact_relationship': relationship,
+        'allergies': allergies,
+        'chronic_conditions': chronicConditions,
+        'past_surgeries': pastSurgeries,
+        'primary_physician': primaryPhysician,
+        'specialist': specialist,
+        'preferred_hospital': preferredHospital,
       };
 
-      // API call
-      final response = await http.post(
-        Uri.parse('https://your-api-url.com/profile'),
-        headers: {'Content-Type': 'application/json'},
+      // Save to API
+      final response = await http.put(
+        Uri.parse('https://10.0.2.2:8443/user/updateprofile/$userId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
         body: json.encode(profileData),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // Save to local storage
+        // Save to local storage as backup
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('profile_data', json.encode(profileData));
         return true;
       } else {
-        print('Failed to update profile. Status: ${response.statusCode}');
-        return false;
+        throw Exception('Failed to update profile: ${response.statusCode}');
       }
     } catch (e) {
       print('Error saving profile data: $e');
@@ -114,16 +195,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-// Call this in your initState
   @override
   void initState() {
     super.initState();
-    _loadProfileFromLocal();
+    _loadProfileData();
   }
 
   @override
   Widget build(BuildContext context) {
     final ColorScheme theme = Theme.of(context).colorScheme;
+
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: theme.background,
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: theme.background,
@@ -142,17 +231,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
           IconButton(
             icon: Icon(_isEditing ? Icons.save_rounded : Icons.edit_rounded,
                 color: theme.onBackground),
-            onPressed: () {
+            onPressed: () async {
               if (_isEditing) {
                 // Save changes if form is valid
                 if (_formKey.currentState!.validate()) {
                   _formKey.currentState!.save();
-                  // Here you would typically save to database/backend
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("Profile updated successfully!")));
-                  setState(() {
-                    _isEditing = false;
-                  });
+                  final success = await _saveProfileData();
+                  if (success) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text("Profile updated successfully!")));
+                    setState(() {
+                      _isEditing = false;
+                    });
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("Failed to update profile")));
+                  }
                 }
               } else {
                 // Enter edit mode
