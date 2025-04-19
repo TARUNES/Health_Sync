@@ -6,24 +6,27 @@ import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'dart:convert';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 class MedicalRecord {
   final String fileName;
   final String emrId;
+  final String createdAt; // Added to store creation date
 
-  MedicalRecord({required this.fileName, required this.emrId});
+  MedicalRecord(
+      {required this.fileName, required this.emrId, required this.createdAt});
 
   factory MedicalRecord.fromJson(Map<String, dynamic> json) {
     return MedicalRecord(
-      fileName: json['fileName'],
-      emrId: json['emrId'],
-    );
+        fileName: json['file_name'], // Changed to match API
+        emrId: json['file_id'], // Changed to match API
+        createdAt: json['created_at'] // Added creation date
+        );
   }
 }
 
 class MedicalRecordsPage extends StatefulWidget {
-  final String userId;
-
-  const MedicalRecordsPage({Key? key, required this.userId}) : super(key: key);
+  const MedicalRecordsPage({Key? key}) : super(key: key);
 
   @override
   _MedicalRecordsPageState createState() => _MedicalRecordsPageState();
@@ -34,6 +37,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
   List<MedicalRecord> _records = [];
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isUploading = false;
+  final String baseUrl = "https://10.0.2.2:8443";
 
   @override
   void initState() {
@@ -44,75 +48,87 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
   List<MedicalRecord> _getMockRecords() {
     return [
       MedicalRecord(
-        fileName: "Blood_Test_Results_2025.pdf",
-        emrId: "EMR123456",
-      ),
-      MedicalRecord(
-        fileName: "Chest_X_Ray_March2025.jpg",
-        emrId: "EMR789012",
-      ),
-      MedicalRecord(
-        fileName: "Annual_Physical_Report.pdf",
-        emrId: "EMR345678",
-      ),
-      MedicalRecord(
-        fileName: "Vaccination_History.pdf",
-        emrId: "EMR901234",
-      ),
-      MedicalRecord(
-        fileName: "MRI_Scan_Results.jpg",
-        emrId: "EMR567890",
-      ),
-      MedicalRecord(
-        fileName: "Prescription_Details.docx",
-        emrId: "EMR234567",
-      ),
-      MedicalRecord(
-        fileName: "Allergy_Test_Report.pdf",
-        emrId: "EMR890123",
-      ),
+          fileName: "Allergy_Test_Report.pdf",
+          emrId: "EMR890123",
+          createdAt: "2025-04-18T14:30:00.000Z"),
     ];
   }
 
-  Future<void> _fetchRecords() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final response = await http.post(
-        Uri.parse('EMR/${widget.userId}/emr/list'),
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        setState(() {
-          _records = data.map((item) => MedicalRecord.fromJson(item)).toList();
-        });
-      } else {
-        _showSnackBar('Failed to load records: ${response.statusCode}');
-      }
-    } catch (e) {
-      _showSnackBar('Error: $e');
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-    await Future.delayed(const Duration(seconds: 1)); // Simulate network delay
-    setState(() {
-      _records = _getMockRecords();
-    });
+  Future<String?> getToken() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token'); // Retrieve token from storage
   }
 
-  Future<void> _downloadRecord(MedicalRecord record) async {
+  Future<String> _getUserId() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? userString = prefs.getString("user");
+
+    if (userString != null) {
+      Map<String, dynamic> userData = jsonDecode(userString);
+      String userId = userData["id"];
+      print("User ID: $userId");
+      return userId;
+    } else {
+      print("No user data found in SharedPreferences.");
+      throw Exception("User not logged in");
+    }
+  }
+
+  Future<void> _fetchRecords() async {
+    String? token = await getToken();
+    String userID = await _getUserId();
     setState(() {
       _isLoading = true;
     });
 
     try {
       final response = await http.get(
-        Uri.parse('EMR/${widget.userId}/emr/${record.emrId}/download'),
+        Uri.parse('${baseUrl}/EMR/${userID}/emr/list'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> records =
+            responseData['records']; // Extract records array
+
+        setState(() {
+          _records =
+              records.map((item) => MedicalRecord.fromJson(item)).toList();
+        });
+      } else {
+        _showSnackBar('Failed to load records: ${response.statusCode}');
+      }
+    } catch (e) {
+      _showSnackBar('Error: $e');
+      // Fallback to mock data only if API fails
+      setState(() {
+        _records = _getMockRecords();
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _downloadRecord(MedicalRecord record) async {
+    String userID = await _getUserId();
+    setState(() {
+      _isLoading = true;
+    });
+    String? token = await getToken();
+
+    try {
+      // Updated URL structure according to your curl example
+      final response = await http.get(
+        Uri.parse(
+            '${baseUrl}/EMR/${userID}/record/${record.emrId}/emr/download'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
       );
 
       if (response.statusCode == 200) {
@@ -121,7 +137,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
         final file = File(filePath);
         await file.writeAsBytes(response.bodyBytes);
 
-        _showSnackBar('File downloaded to: $filePath');
+        _showSnackBar('File downloaded successfully');
         await OpenFile.open(filePath);
       } else {
         _showSnackBar('Failed to download: ${response.statusCode}');
@@ -136,9 +152,11 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
   }
 
   Future<void> _uploadFile() async {
+    String userID = await _getUserId();
     setState(() {
       _isUploading = true;
     });
+    String? token = await getToken();
 
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles();
@@ -149,9 +167,12 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
         // Create multipart request
         var request = http.MultipartRequest(
-          'POST',
-          Uri.parse('EMR/${widget.userId}/emr/upload'),
+          'POST', // Using POST as this is more appropriate for uploads
+          Uri.parse('${baseUrl}/EMR/${userID}/emr/upload'),
         );
+
+        // Add authorization header
+        request.headers['Authorization'] = 'Bearer ${token}';
 
         // Add file to request
         request.files.add(
@@ -188,65 +209,6 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
       SnackBar(content: Text(message)),
     );
   }
-
-  // void _showUploadBottomSheet() {
-  //   showModalBottomSheet(
-  //     context: context,
-  //     isScrollControlled: true,
-  //     shape: const RoundedRectangleBorder(
-  //       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-  //     ),
-  //     builder: (context) => _buildUploadBottomSheet(),
-  //   );
-  // }
-
-  // Widget _buildUploadBottomSheet() {
-  //   return Container(
-  //     padding: EdgeInsets.only(
-  //       bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-  //       top: 20,
-  //       left: 20,
-  //       right: 20,
-  //     ),
-  //     child: Column(
-  //       mainAxisSize: MainAxisSize.min,
-  //       crossAxisAlignment: CrossAxisAlignment.start,
-  //       children: [
-  //         const Text(
-  //           'Upload Medical Record',
-  //           style: TextStyle(
-  //             fontSize: 20,
-  //             fontWeight: FontWeight.bold,
-  //           ),
-  //         ),
-  //         const SizedBox(height: 20),
-  //         const Text(
-  //           'Select a file from your device to upload as a medical record.',
-  //           style: TextStyle(fontSize: 16),
-  //         ),
-  //         const SizedBox(height: 30),
-  //         Center(
-  //           child: ElevatedButton.icon(
-  //             onPressed: _isUploading ? null : _uploadFile,
-  //             icon: _isUploading
-  //                 ? const SizedBox(
-  //                     width: 20,
-  //                     height: 20,
-  //                     child: CircularProgressIndicator(strokeWidth: 2),
-  //                   )
-  //                 : const Icon(Icons.file_upload),
-  //             label: Text(_isUploading ? 'Uploading...' : 'Select File'),
-  //             style: ElevatedButton.styleFrom(
-  //               padding:
-  //                   const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
-  //             ),
-  //           ),
-  //         ),
-  //         const SizedBox(height: 20),
-  //       ],
-  //     ),
-  //   );
-  // }
 
   @override
   Widget build(BuildContext context) {
@@ -407,6 +369,16 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
       cardColor = Colors.amber.shade50;
     }
 
+    // Format the date for display
+    String formattedDate = "";
+    try {
+      DateTime creationDate = DateTime.parse(record.createdAt);
+      formattedDate =
+          "${creationDate.day}/${creationDate.month}/${creationDate.year}";
+    } catch (e) {
+      formattedDate = "Unknown date";
+    }
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       decoration: BoxDecoration(
@@ -469,12 +441,35 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          'EMR ID: ${record.emrId}',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 14,
-                          ),
+                        Row(
+                          children: [
+                            Icon(Icons.calendar_today,
+                                size: 12, color: Colors.grey[600]),
+                            SizedBox(width: 4),
+                            Text(
+                              formattedDate,
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 13,
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Icon(Icons.fingerprint,
+                                size: 12, color: Colors.grey[600]),
+                            SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                record.emrId.length > 8
+                                    ? record.emrId.substring(0, 8) + '...'
+                                    : record.emrId,
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 13,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -506,6 +501,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                     onPressed: () {
                       // View record details
                       _showSnackBar('Viewing details for ${record.fileName}');
+                      _downloadRecord(record);
                     },
                     icon: const Icon(Icons.visibility, size: 18),
                     label: const Text('View'),

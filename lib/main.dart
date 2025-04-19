@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:health_sync_client/core/constants/theme.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -15,6 +17,7 @@ void main() async {
   //   options: DefaultFirebaseOptions.currentPlatform,
   // );
   // await NotificationService().initialize();
+  HttpOverrides.global = new MyHttpOverrides();
   runApp(const MyApp());
 }
 
@@ -33,5 +36,14 @@ class MyApp extends StatelessWidget {
       //   userId: "",
       // ),
     );
+  }
+}
+
+class MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback =
+          (X509Certificate cert, String host, int port) => true;
   }
 }

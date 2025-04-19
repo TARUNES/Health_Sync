@@ -29,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Booking> bookings = [];
   bool isLoading = true;
   String name = "Tarun"; // Default name
+  String userID = "";
   String height = "164"; // Default name
   String weight = "59"; // Default name
 
@@ -91,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final response = await http.get(
-        Uri.parse('http://172.31.135.242:8080/user/bookings/users/${userId}'),
+        Uri.parse('https://10.0.2.2:8443/user/bookings/users/${userId}'),
         headers: {
           "Authorization": "Bearer $token",
           "Content-Type": "application/json",
@@ -262,10 +263,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => MedicalRecordsPage(
-                                      userId:
-                                          "1", // Replace with actual user ID
-                                    ),
+                                    builder: (context) => MedicalRecordsPage(),
                                   ),
                                 );
                               },
