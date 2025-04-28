@@ -13,10 +13,10 @@ import 'features/medication/presentation/screens/MedicationAlert.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // await Firebase.initializeApp(
-  //   options: DefaultFirebaseOptions.currentPlatform,
-  // );
-  // await NotificationService().initialize();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  await NotificationService().initialize();
   HttpOverrides.global = new MyHttpOverrides();
   runApp(const MyApp());
 }
