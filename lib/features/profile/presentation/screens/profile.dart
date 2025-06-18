@@ -80,7 +80,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       // Fetch profile data from API
       final response = await http.get(
-        Uri.parse('https://10.0.2.2:8443/user/profile/$userId'),
+        Uri.parse('https://192.168.0.8:8443/user/profile/$userId'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -173,7 +173,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       // Save to API
       final response = await http.put(
-        Uri.parse('https://10.0.2.2:8443/user/updateprofile/$userId'),
+        Uri.parse('https://192.168.0.8:8443/user/updateprofile/$userId'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',

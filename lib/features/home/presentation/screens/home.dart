@@ -112,7 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final response = await http.get(
-        Uri.parse('https://10.0.2.2:8443/user/bookings/users/${userId}'),
+        Uri.parse('https://192.168.0.8:8443/user/bookings/users/${userId}'),
         headers: {
           "Authorization": "Bearer $token",
           "Content-Type": "application/json",

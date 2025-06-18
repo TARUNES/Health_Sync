@@ -291,7 +291,7 @@ class LoginWidget extends StatelessWidget {
 
 class AuthService {
   final String baseUrl =
-      "https://10.0.2.2:8443/auth"; // Replace with your backend URL
+      "https://192.168.0.8:8443/auth"; // Replace with your backend URL
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     // For iOS devices, use your iOS client ID also

@@ -37,7 +37,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
   List<MedicalRecord> _records = [];
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isUploading = false;
-  final String baseUrl = "https://10.0.2.2:8443";
+  final String baseUrl = "https://192.168.0.8:8443";
 
   @override
   void initState() {

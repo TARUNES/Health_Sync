@@ -17,7 +17,7 @@ class DoctorRepo {
 
     try {
       final response = await http.get(
-        Uri.parse('https://10.0.2.2:8443/user/doctors'),
+        Uri.parse('https://192.168.0.8:8443/user/doctors'),
         headers: {
           "Authorization": "Bearer $token",
           "Content-Type": "application/json",

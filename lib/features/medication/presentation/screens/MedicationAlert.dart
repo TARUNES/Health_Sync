@@ -501,7 +501,7 @@ class _MedicationScreenState extends State<MedicationScreen> {
 }
 
 class MedicationRepository {
-  final String baseUrl = "https://10.0.2.2:8443";
+  final String baseUrl = "https://192.168.0.8:8443";
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 

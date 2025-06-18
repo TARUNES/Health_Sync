@@ -81,7 +81,7 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
     final String bookingid = selectedAvailability.id;
 
     final String apiUrl =
-        "https://10.0.2.2:8443/user/bookings/users/${userid}/availability/${bookingid}";
+        "https://192.168.0.8:8443/user/bookings/users/${userid}/availability/${bookingid}";
 
     // final token =
     //     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiOTc3NWE4MjctNjZjMC00OTdiLTk4YTQtNzIwZjQ1YjE5MzAwIiwicm9sZSI6InVzZXIiLCJlbWFpbCI6InRhcnVuZXNvZmZpY2lhbEBnbWFpbC5jb20iLCJleHAiOjE3NDE2MzA0OTZ9.dTsoSOetbLB4p48KrAyfwQkIQaJA5-Xoj8J6KaDGDfw";
@@ -118,7 +118,7 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
 
   Future<void> fetchAvailability() async {
     final String url =
-        'https://10.0.2.2:8443/doctors/${widget.doctor.id}/availability/';
+        'https://192.168.0.8:8443/doctors/${widget.doctor.id}/availability/';
 
     Future<String?> getToken() async {
       SharedPreferences prefs = await SharedPreferences.getInstance();
